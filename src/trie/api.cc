@@ -34,7 +34,7 @@ defined by the Mozilla Public License, v. 2.0.
 using namespace v8;
 
 TrieParser::TrieParser(char * filename, char * required_properties) {
-  init_result = fiftyoneDegreesInit(filename, required_properties);
+  init_result = fiftyoneDegreesInitWithPropertyString(filename, required_properties);
 }
 
 TrieParser::~TrieParser() {
