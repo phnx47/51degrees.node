@@ -55,56 +55,58 @@ PatternParser::~PatternParser() {
 }
 
 void PatternParser::Init(Handle<Object> target) {
-  NanScope();
-  Local<FunctionTemplate> t = NanNew<FunctionTemplate>(New);
+  Nan::HandleScope scope;
+  Local<FunctionTemplate> t = Nan::New<FunctionTemplate>(New);
   // TODO(Yorkie): will remove
   t->InstanceTemplate()->SetInternalFieldCount(1);
-  NODE_SET_PROTOTYPE_METHOD(t, "parse", Parse);
-  target->Set(NanNew<v8::String>("PatternParser"), t->GetFunction());
+  Nan::SetPrototypeMethod(t, "parse", Parse);
+  Nan::Set(target, 
+    Nan::New<v8::String>("PatternParser").ToLocalChecked(),
+    t->GetFunction());
 }
 
 NAN_METHOD(PatternParser::New) {
-  NanScope();
+  Nan::HandleScope scope;
   char *filename;
   char *requiredProperties;
 
   // convert v8 objects to c/c++ types
-  v8::String::Utf8Value v8_filename(args[0]->ToString());
-  v8::String::Utf8Value v8_properties(args[1]->ToString());
+  v8::String::Utf8Value v8_filename(info[0]->ToString());
+  v8::String::Utf8Value v8_properties(info[1]->ToString());
   filename = *v8_filename;
   requiredProperties = *v8_properties;
 
   // create new instance of C++ class PatternParser
   PatternParser *parser = new PatternParser(filename, requiredProperties);
-  parser->Wrap(args.This());
+  parser->Wrap(info.This());
 
   // valid the database file content
   switch(parser->result) {
     case DATA_SET_INIT_STATUS_INSUFFICIENT_MEMORY:
-      return NanThrowError("Insufficient memory");
+      return Nan::ThrowError("Insufficient memory");
     case DATA_SET_INIT_STATUS_CORRUPT_DATA:
-      return NanThrowError("Device data file is corrupted");
+      return Nan::ThrowError("Device data file is corrupted");
     case DATA_SET_INIT_STATUS_INCORRECT_VERSION:
-      return NanThrowError("Device data file is not correct");
+      return Nan::ThrowError("Device data file is not correct");
     case DATA_SET_INIT_STATUS_FILE_NOT_FOUND:
-      return NanThrowError("Device data file not found");
+      return Nan::ThrowError("Device data file not found");
     default:
-      NanReturnValue(args.This());
+      info.GetReturnValue().Set(info.This());
   }
 }
 
 NAN_METHOD(PatternParser::Parse) {
-  NanScope();
+  Nan::HandleScope scope;
 
   // convert v8 objects to c/c++ types
-  PatternParser *parser = ObjectWrap::Unwrap<PatternParser>(args.This());
-  Local<Object> result = NanNew<Object>();
-  v8::String::Utf8Value v8_input(args[0]->ToString());
+  PatternParser *parser = ObjectWrap::Unwrap<PatternParser>(info.This());
+  Local<Object> result = Nan::New<Object>();
+  v8::String::Utf8Value v8_input(info[0]->ToString());
 
   fiftyoneDegreesWorkset *ws = parser->workSet;
   int maxInputLength = (parser->dataSet->header.maxUserAgentLength + 1) * sizeof(char);
   if (strlen(*v8_input) > maxInputLength) {
-    return NanThrowError("Invalid useragent: too long");
+    return Nan::ThrowError("Invalid useragent: too long");
   }
 
   // here we should initialize the ws->input by hand for avoiding
@@ -126,7 +128,9 @@ NAN_METHOD(PatternParser::Parse) {
       else
         pos += snprintf(pos, idSize, "%d", (*(ws->profiles + profileIndex))->profileId);
     }
-    result->Set(NanNew<v8::String>("Id"), NanNew<v8::String>(ids));
+    Nan::Set(result, 
+      Nan::New<v8::String>("Id").ToLocalChecked(), 
+      Nan::New<v8::String>(ids).ToLocalChecked());
     free(ids);
 
     // build JSON
@@ -139,42 +143,63 @@ NAN_METHOD(PatternParser::Parse) {
 
       const char *key = fiftyoneDegreesGetPropertyName(ws->dataSet, 
         *(ws->dataSet->requiredProperties + propertyIndex));
+      Local<v8::Value> keyVal = Nan::New<v8::String>(key).ToLocalChecked();
 
       if (ws->valuesCount == 1) {
         const char *val = fiftyoneDegreesGetValueName(ws->dataSet, *(ws->values));
+        
         // convert string to boolean
         if (strcmp(val, "True") == 0)
-          result->Set(NanNew<v8::String>(key), NanTrue());
+          Nan::Set(result, keyVal, Nan::True());
         else if (strcmp(val, "False") == 0)
-          result->Set(NanNew<v8::String>(key), NanFalse());
+          Nan::Set(result, keyVal, Nan::False());
         else
-          result->Set(NanNew<v8::String>(key), NanNew<v8::String>(val));
+          Nan::Set(result, keyVal, Nan::New<v8::String>(val).ToLocalChecked());
       } else {
-        Local<Array> vals = NanNew<Array>(ws->valuesCount - 1);
+        MaybeLocal<Array> vals = Nan::New<Array>(ws->valuesCount - 1);
         for (valueIndex = 0; valueIndex < ws->valuesCount; valueIndex++) {
           const char *val = fiftyoneDegreesGetValueName(ws->dataSet, *(ws->values + valueIndex));
-          vals->Set(valueIndex, NanNew<v8::String>(val));
+          Nan::Set(vals.ToLocalChecked(), 
+            valueIndex, 
+            Nan::New<v8::String>(val).ToLocalChecked());
         }
-        result->Set(NanNew<v8::String>(key), vals);
+        Nan::Set(result, keyVal, vals.ToLocalChecked());
       }
     }
 
-    Local<Object> meta = NanNew<Object>();
-    meta->Set(NanNew<v8::String>("difference"), NanNew<v8::Integer>(ws->difference));
-    meta->Set(NanNew<v8::String>("method"), NanNew<v8::Integer>(ws->method));
-    meta->Set(NanNew<v8::String>("rootNodesEvaluated"), NanNew<v8::Integer>(ws->rootNodesEvaluated));
-    meta->Set(NanNew<v8::String>("nodesEvaluated"), NanNew<v8::Integer>(ws->nodesEvaluated));
-    meta->Set(NanNew<v8::String>("stringsRead"), NanNew<v8::Integer>(ws->stringsRead));
-    meta->Set(NanNew<v8::String>("signaturesRead"), NanNew<v8::Integer>(ws->signaturesRead));
-    meta->Set(NanNew<v8::String>("signaturesCompared"), NanNew<v8::Integer>(ws->signaturesCompared));
-    meta->Set(NanNew<v8::String>("closestSignatures"), NanNew<v8::Integer>(ws->closestSignatures));
-    result->Set(NanNew<v8::String>("__meta__"), meta);
+    Local<Object> meta = Nan::New<Object>();
+    Nan::Set(meta, 
+      Nan::New<v8::String>("difference").ToLocalChecked(),
+      Nan::New<v8::Integer>(ws->difference));
+    Nan::Set(meta,
+      Nan::New<v8::String>("method").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->method));
+    Nan::Set(meta,
+      Nan::New<v8::String>("rootNodesEvaluated").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->rootNodesEvaluated));
+    Nan::Set(meta,
+      Nan::New<v8::String>("nodesEvaluated").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->nodesEvaluated));
+    Nan::Set(meta,
+      Nan::New<v8::String>("stringsRead").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->stringsRead));
+    Nan::Set(meta,
+      Nan::New<v8::String>("signaturesRead").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->signaturesRead));
+    Nan::Set(meta,
+      Nan::New<v8::String>("signaturesCompared").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->signaturesCompared));
+    Nan::Set(meta,
+      Nan::New<v8::String>("closestSignatures").ToLocalChecked(), 
+      Nan::New<v8::Integer>(ws->closestSignatures));
+    Nan::Set(result,
+      Nan::New<v8::String>("__meta__").ToLocalChecked(), 
+      meta);
   } else {
-    NanFalse();
+    Nan::False();
   }
 
-  NanReturnValue(result);
+  info.GetReturnValue().Set(result);
 }
-
 
 NODE_MODULE(pattern, PatternParser::Init)

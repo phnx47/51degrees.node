@@ -41,51 +41,53 @@ TrieParser::~TrieParser() {
 }
 
 void TrieParser::Init(Handle<Object> target) {
-  NanScope();
-  Local<FunctionTemplate> t = NanNew<FunctionTemplate>(New);
+  Nan::HandleScope scope;
+  Local<FunctionTemplate> t = Nan::New<FunctionTemplate>(New);
   // TODO(Yorkie): will remove
   t->InstanceTemplate()->SetInternalFieldCount(1);
-  NODE_SET_PROTOTYPE_METHOD(t, "parse", Parse);
-  target->Set(NanNew<String>("TrieParser"), t->GetFunction());
+  Nan::SetPrototypeMethod(t, "parse", Parse);
+  Nan::Set(target, 
+    Nan::New<String>("TrieParser").ToLocalChecked(), 
+    t->GetFunction());
 }
 
 NAN_METHOD(TrieParser::New) {
-  NanScope();
+  Nan::HandleScope scope;
   char *filename;
   char *required_properties;
 
   // convert v8 objects to c/c++ types
-  v8::String::Utf8Value v8_filename(args[0]->ToString());
-  v8::String::Utf8Value v8_properties(args[1]->ToString());
+  v8::String::Utf8Value v8_filename(info[0]->ToString());
+  v8::String::Utf8Value v8_properties(info[1]->ToString());
   filename = *v8_filename;
   required_properties = *v8_properties;
 
   // create new instance of C++ class TrieParser
   TrieParser *parser = new TrieParser(filename, required_properties);
-  parser->Wrap(args.This());
+  parser->Wrap(info.This());
 
   // valid the database file content
   switch(parser->init_result) {
     case DATA_SET_INIT_STATUS_INSUFFICIENT_MEMORY:
-      return NanThrowError("Insufficient memory");
+      return Nan::ThrowError("Insufficient memory");
     case DATA_SET_INIT_STATUS_CORRUPT_DATA:
-      return NanThrowError("Device data file is corrupted");
+      return Nan::ThrowError("Device data file is corrupted");
     case DATA_SET_INIT_STATUS_INCORRECT_VERSION:
-      return NanThrowError("Device data file is not correct");
+      return Nan::ThrowError("Device data file is not correct");
     case DATA_SET_INIT_STATUS_FILE_NOT_FOUND:
-      return NanThrowError("Device data file not found");
+      return Nan::ThrowError("Device data file not found");
     default:
-      NanReturnValue(args.This());
+      info.GetReturnValue().Set(info.This());
   }
 }
 
 NAN_METHOD(TrieParser::Parse) {
-  NanScope();
+  Nan::HandleScope scope;
 
   // convert v8 objects to c/c++ types
   char *input = NULL;
-  Local<Object> result = NanNew<Object>();
-  v8::String::Utf8Value v8_input(args[0]->ToString());
+  Local<Object> result = Nan::New<Object>();
+  v8::String::Utf8Value v8_input(info[0]->ToString());
   input = *v8_input;
   
   int device = fiftyoneDegreesGetDeviceOffset(input);
@@ -95,17 +97,18 @@ NAN_METHOD(TrieParser::Parse) {
 
   for (index = 0; index < propCount; index++) {
     char *key = *(propNames + index);
+    Local <v8::Value> keyVal = Nan::New<v8::String>(key).ToLocalChecked();
+
     int propIndex = fiftyoneDegreesGetPropertyIndex(key);
     char *val = fiftyoneDegreesGetValue(device, propIndex);
     if (strcmp(val, "True") == 0)
-      result->Set(NanNew<v8::String>(key), NanTrue());
+      Nan::Set(result, keyVal, Nan::True());
     else if (strcmp(val, "False") == 0)
-      result->Set(NanNew<v8::String>(key), NanFalse());
+      Nan::Set(result, keyVal, Nan::False());
     else
-      result->Set(NanNew<v8::String>(key), NanNew<v8::String>(val));
+      Nan::Set(result, keyVal, Nan::New<v8::String>(val).ToLocalChecked());
   }
-
-  NanReturnValue(result);
+  info.GetReturnValue().Set(result);
 }
 
 NODE_MODULE(trie, TrieParser::Init)
