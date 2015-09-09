@@ -156,7 +156,7 @@ NAN_METHOD(PatternParser::Parse) {
         else
           Nan::Set(result, keyVal, Nan::New<v8::String>(val).ToLocalChecked());
       } else {
-        MaybeLocal<Array> vals = Nan::New<Array>(ws->valuesCount - 1);
+        Nan::MaybeLocal<Array> vals = Nan::New<Array>(ws->valuesCount - 1);
         for (valueIndex = 0; valueIndex < ws->valuesCount; valueIndex++) {
           const char *val = fiftyoneDegreesGetValueName(ws->dataSet, *(ws->values + valueIndex));
           Nan::Set(vals.ToLocalChecked(), 
